@@ -165,8 +165,51 @@
   .backface-hidden { backface-visibility: hidden; }
 }
 
+/* Hide native cursor on desktop — replaced by CustomCursor */
+@media (min-width: 1024px) {
+  *, *::before, *::after { cursor: none !important; }
+}
+
 /* Page transitions */
 .page-enter { opacity: 0; transform: translateY(10px); }
 .page-enter-active { opacity: 1; transform: translateY(0); transition: opacity 400ms, transform 400ms; }
 .page-exit { opacity: 1; }
 .page-exit-active { opacity: 0; transition: opacity 200ms; }
+
+/* Writing vertical */
+.writing-vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+}
+
+/* Clip-path reveal utility */
+.clip-reveal {
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.clip-reveal.revealed {
+  clip-path: inset(0 0% 0 0);
+}
+
+/* Bento hover glow */
+.bento-glow:hover {
+  box-shadow: 0 0 0 1px rgba(201,168,76,0.15), 0 20px 60px rgba(0,0,0,0.6);
+}
+
+/* Horizontal scroll snap */
+.snap-x-mandatory {
+  scroll-snap-type: x mandatory;
+}
+.snap-start { scroll-snap-align: start; }
+
+/* Selection gold */
+::selection {
+  background: rgba(201, 168, 76, 0.25);
+  color: #e8d5a3;
+}
+
+/* Focus outline gold */
+:focus-visible {
+  outline: 1px solid rgba(201,168,76,0.5);
+  outline-offset: 3px;
+}

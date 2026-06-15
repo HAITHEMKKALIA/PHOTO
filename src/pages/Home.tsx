@@ -1,279 +1,257 @@
-import { useEffect, useRef } from 'react'
+import { lazy, Suspense, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { motion } from 'framer-motion'
-import { useInView } from 'react-intersection-observer'
-import { ArrowRight, Star, Truck, Shield, RotateCcw } from 'lucide-react'
+import { motion, useScroll, useTransform } from 'framer-motion'
+import { ArrowRight, Star, Truck, Shield, RotateCcw, Gem } from 'lucide-react'
 import gsap from 'gsap'
-import { lazy, Suspense } from 'react'
-const HeroSection = lazy(() => import('@/components/home/HeroSection').then((m) => ({ default: m.HeroSection })))
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { ProductCard } from '@/components/shop/ProductCard'
-import { DEMO_PRODUCTS } from '@/lib/utils'
+import { BentoGrid } from '@/components/home/BentoGrid'
+import { RevealBlock, RevealStagger } from '@/components/ui/RevealBlock'
+import { KineticText } from '@/components/ui/KineticText'
+import { Magnetic } from '@/components/ui/Magnetic'
+import { DEMO_PRODUCTS, formatPrice } from '@/lib/utils'
 
-const COLLECTIONS = [
-  {
-    id: 'soiree',
-    title: 'Soirée & Gala',
-    subtitle: 'Robes de prestige',
-    image: 'https://images.unsplash.com/photo-1566479179817-57d7c3f9b12e?w=800&q=80',
-    href: '/collections',
-    count: '24 pièces',
-  },
-  {
-    id: 'business',
-    title: 'Power Dressing',
-    subtitle: 'Blazers & Tailleurs',
-    image: 'https://images.unsplash.com/photo-1591369822096-ffd140ec948f?w=800&q=80',
-    href: '/collections',
-    count: '18 pièces',
-  },
-  {
-    id: 'casual',
-    title: 'Casual Luxe',
-    subtitle: 'Élégance du quotidien',
-    image: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=800&q=80',
-    href: '/collections',
-    count: '32 pièces',
-  },
-]
+gsap.registerPlugin(ScrollTrigger)
 
-const PROMISES = [
-  { Icon: Truck,     title: 'Livraison gratuite',   desc: 'Dès 150€ d\'achat en France' },
-  { Icon: Shield,    title: 'Paiement sécurisé',    desc: 'SSL & 3D Secure garantis' },
-  { Icon: RotateCcw, title: 'Retours 14 jours',     desc: 'Échanges et remboursements' },
-  { Icon: Star,      title: 'Qualité premium',       desc: 'Sélection haute couture' },
-]
+const HeroSection = lazy(() =>
+  import('@/components/home/HeroSection').then((m) => ({ default: m.HeroSection }))
+)
 
-function SectionHeader({ subtitle, title, description }: { subtitle: string; title: string; description?: string }) {
-  const [ref, inView] = useInView({ triggerOnce: true, threshold: 0.1 })
+// ─── Horizontal scroll marquee (GSAP) ───────────────────────────────────────
+function Marquee({ items }: { items: string[] }) {
+  const trackRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const el = trackRef.current
+    if (!el) return
+    gsap.to(el, { x: '-50%', duration: 22, repeat: -1, ease: 'none' })
+  }, [])
+  const doubled = [...items, ...items]
   return (
-    <div ref={ref} className="text-center mb-16">
-      <motion.p
-        className="section-subtitle text-gold mb-4"
-        initial={{ opacity: 0, y: 10 }}
-        animate={inView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.5 }}
-      >
-        {subtitle}
-      </motion.p>
-      <motion.h2
-        className="section-title mb-4"
-        initial={{ opacity: 0, y: 20 }}
-        animate={inView ? { opacity: 1, y: 0 } : {}}
-        transition={{ duration: 0.6, delay: 0.1 }}
-      >
-        {title}
-      </motion.h2>
-      <div className="gold-divider" />
-      {description && (
-        <motion.p
-          className="text-white/40 max-w-xl mx-auto mt-4 text-sm leading-relaxed"
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : {}}
-          transition={{ duration: 0.6, delay: 0.2 }}
-        >
-          {description}
-        </motion.p>
-      )}
+    <div className="overflow-hidden py-5 border-y border-white/[0.05] bg-noir-900/60">
+      <div ref={trackRef} className="flex gap-10 whitespace-nowrap w-max">
+        {doubled.map((item, i) => (
+          <span key={i} className="text-white/15 text-[10px] font-body tracking-[0.5em] uppercase">
+            {item}
+          </span>
+        ))}
+      </div>
     </div>
   )
 }
 
-export function Home() {
-  const marqueeRef = useRef<HTMLDivElement>(null)
+// ─── Horizontal product scroll section ──────────────────────────────────────
+function HorizontalScroll() {
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const trackRef   = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!marqueeRef.current) return
-    gsap.to(marqueeRef.current, {
-      x: '-50%',
-      duration: 25,
-      repeat: -1,
+    const section = sectionRef.current
+    const track   = trackRef.current
+    if (!section || !track) return
+
+    const totalWidth = track.scrollWidth - window.innerWidth
+
+    gsap.to(track, {
+      x: -totalWidth,
       ease: 'none',
+      scrollTrigger: {
+        trigger: section,
+        start: 'top top',
+        end: `+=${totalWidth}`,
+        pin: true,
+        scrub: 1.2,
+        anticipatePin: 1,
+      },
     })
+
+    return () => ScrollTrigger.getAll().forEach((t) => t.kill())
   }, [])
 
-  const featured = DEMO_PRODUCTS.filter((p) => p.is_featured).slice(0, 4)
+  const items = DEMO_PRODUCTS.slice(0, 6) as any[]
+
+  return (
+    <div ref={sectionRef} className="relative overflow-hidden h-screen">
+      <div className="absolute top-16 left-8 sm:left-16 z-10">
+        <RevealBlock>
+          <p className="section-subtitle text-gold mb-2">Glissez →</p>
+          <h2 className="font-display text-4xl md:text-5xl text-white">Best-sellers</h2>
+        </RevealBlock>
+      </div>
+      <div ref={trackRef} className="flex items-center gap-6 h-full pl-[30vw] pr-24" style={{ width: 'max-content' }}>
+        {items.map((product, i) => (
+          <div key={product.id} className="w-[280px] sm:w-[320px] flex-shrink-0">
+            <ProductCard product={product} index={i} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// ─── Parallax editorial strip ────────────────────────────────────────────────
+function EditorialStrip() {
+  const ref  = useRef<HTMLDivElement>(null)
+  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] })
+  const y1 = useTransform(scrollYProgress, [0, 1], ['-8%', '8%'])
+  const y2 = useTransform(scrollYProgress, [0, 1], ['8%', '-8%'])
+  const scale = useTransform(scrollYProgress, [0, 0.5, 1], [1.1, 1, 1.1])
+
+  return (
+    <section ref={ref} className="relative py-32 overflow-hidden">
+      <div className="absolute inset-0">
+        <motion.img
+          src="https://images.unsplash.com/photo-1536243983083-40f2e12be5b5?w=1600&q=80"
+          alt=""
+          style={{ y: y1, scale }}
+          className="w-full h-full object-cover"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-noir-900 via-noir-900/80 to-noir-900/20" />
+      </div>
+
+      <div className="relative max-w-7xl mx-auto px-6 sm:px-10 lg:px-16">
+        <div className="grid md:grid-cols-2 gap-16 items-center">
+          <motion.div style={{ y: y2 }}>
+            <RevealBlock>
+              <p className="section-subtitle text-gold mb-4">Offre Exclusive</p>
+              <KineticText
+                text="Édition Limitée"
+                tag="h2"
+                className="font-display text-5xl md:text-6xl text-white leading-tight"
+                trigger="scroll"
+                stagger={0.05}
+              />
+              <br />
+              <KineticText
+                text="Automne 2026"
+                tag="h2"
+                className="font-display text-5xl md:text-6xl gold-text leading-tight"
+                trigger="scroll"
+                stagger={0.05}
+                delay={0.3}
+              />
+              <p className="text-white/40 text-sm leading-relaxed mt-6 mb-8 max-w-sm">
+                20 pièces numérotées. Chaque robe porte l'empreinte de nos créateurs.
+                Soyez la première à la découvrir.
+              </p>
+              <Magnetic>
+                <Link to="/collections" className="btn-gold inline-flex group">
+                  Découvrir l'édition
+                  <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
+                </Link>
+              </Magnetic>
+            </RevealBlock>
+          </motion.div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Promises bar ────────────────────────────────────────────────────────────
+const PROMISES = [
+  { Icon: Truck,    title: 'Livraison gratuite', desc: 'Dès 150€' },
+  { Icon: Shield,   title: 'Paiement sécurisé',  desc: 'SSL 3D Secure' },
+  { Icon: RotateCcw,title: 'Retours 14 jours',   desc: 'Sans frais' },
+  { Icon: Gem,      title: 'Qualité premium',     desc: 'Haute couture' },
+]
+
+// ─── Testimonials ────────────────────────────────────────────────────────────
+const TESTIMONIALS = [
+  { name: 'Sophie M.', city: 'Paris', rating: 5, text: 'Une boutique exceptionnelle. La robe que j\'ai reçue est d\'une qualité incroyable. Je reviendrai sans hésiter !' },
+  { name: 'Camille D.', city: 'Lyon', rating: 5, text: 'Service parfait. Réponse en moins d\'une heure via le chat, livraison en 2 jours. Parfait.' },
+  { name: 'Marie L.', city: 'Bordeaux', rating: 5, text: 'MILLA, c\'est le luxe accessible. Les créations sont uniques et on se sent vraiment spéciale.' },
+]
+
+// ─── Main ────────────────────────────────────────────────────────────────────
+export function Home() {
   const newArrivals = DEMO_PRODUCTS.filter((p) => p.is_new).slice(0, 4)
+  const marqueeItems = ['MILLA BOUTIQUE', '✦', 'HAUTE COUTURE', '✦', 'PARIS', '✦', 'MODE FÉMININE', '✦', 'LUXE & ÉLÉGANCE', '✦', 'COLLECTION 2026', '✦']
 
   return (
     <div className="overflow-x-hidden">
-      {/* Hero */}
-      <Suspense fallback={<div className="h-screen bg-noir-900" />}>
+      {/* Hero 3D */}
+      <Suspense fallback={<div className="h-screen bg-noir-900 flex items-center justify-center"><div className="w-8 h-8 rounded-full border-2 border-gold border-t-transparent animate-spin" /></div>}>
         <HeroSection />
       </Suspense>
 
       {/* Marquee */}
-      <div className="overflow-hidden border-y border-white/[0.06] bg-noir-800/50 py-4">
-        <div ref={marqueeRef} className="flex gap-12 whitespace-nowrap" style={{ width: 'max-content' }}>
-          {Array(4).fill(['MILLA BOUTIQUE', '★', 'HAUTE COUTURE', '★', 'MODE FÉMININE', '★', 'LUXE & ÉLÉGANCE', '★']).flat().map((item, i) => (
-            <span key={i} className="text-white/20 text-xs font-body tracking-[0.4em] uppercase">
-              {item}
-            </span>
-          ))}
-        </div>
-      </div>
+      <Marquee items={marqueeItems} />
 
-      {/* Collections */}
+      {/* Bento Grid 2026 */}
+      <BentoGrid />
+
+      {/* Horizontal scroll products */}
+      <HorizontalScroll />
+
+      {/* Editorial parallax */}
+      <EditorialStrip />
+
+      {/* New arrivals grid */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <SectionHeader
-          subtitle="Nos Collections"
-          title="L'élégance en toutes occasions"
-          description="De la soirée de gala au bureau, MILLA habille chaque moment de votre vie avec raffinement."
-        />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {COLLECTIONS.map((col, i) => (
-            <motion.div
-              key={col.id}
-              initial={{ opacity: 0, y: 30 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: i * 0.1 }}
-              className={`group relative overflow-hidden ${i === 0 ? 'md:row-span-2 aspect-[3/4]' : 'aspect-square'}`}
-            >
-              <img
-                src={col.image}
-                alt={col.title}
-                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-              <div className="absolute bottom-0 left-0 right-0 p-6">
-                <p className="text-white/50 text-xs tracking-widest uppercase mb-1">{col.subtitle}</p>
-                <h3 className="font-display text-2xl text-white mb-1">{col.title}</h3>
-                <p className="text-gold text-xs mb-4">{col.count}</p>
-                <Link
-                  to={col.href}
-                  className="inline-flex items-center gap-2 text-white text-xs tracking-widest uppercase hover:text-gold transition-colors group/link"
-                >
-                  Découvrir
-                  <ArrowRight className="w-4 h-4 transition-transform group-hover/link:translate-x-1" />
-                </Link>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      </section>
-
-      {/* Featured products */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <SectionHeader
-          subtitle="Sélection"
-          title="Pièces Coups de Cœur"
-          description="Nos stylistes ont sélectionné pour vous les créations les plus iconiques de la saison."
-        />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-          {featured.map((product, i) => (
-            <ProductCard key={product.id} product={product as any} index={i} />
-          ))}
-        </div>
-        <div className="text-center mt-12">
-          <Link to="/boutique" className="btn-outline-gold inline-flex">
-            Voir toute la boutique
-            <ArrowRight className="w-4 h-4" />
-          </Link>
-        </div>
-      </section>
-
-      {/* Banner */}
-      <section className="relative py-32 overflow-hidden">
-        <div className="absolute inset-0">
-          <img
-            src="https://images.unsplash.com/photo-1536243983083-40f2e12be5b5?w=1600&q=80"
-            alt=""
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-noir-900/80" />
-          <div className="absolute inset-0 bg-gradient-to-r from-noir-900 via-noir-900/70 to-transparent" />
-        </div>
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <motion.div
-            initial={{ opacity: 0, x: -40 }}
-            whileInView={{ opacity: 1, x: 0 }}
-            viewport={{ once: true }}
-            className="max-w-xl"
-          >
-            <span className="section-subtitle text-gold mb-4 block">Offre Exclusive</span>
-            <h2 className="font-display text-5xl md:text-6xl text-white leading-tight mb-6">
-              Édition Limitée<br />
-              <span className="gold-text">Automne 2024</span>
-            </h2>
-            <p className="text-white/50 text-base leading-relaxed mb-8">
-              20 pièces uniques signées par nos créateurs. Chaque robe raconte une histoire.
-              Soyez la première à la porter.
-            </p>
-            <Link to="/collections" className="btn-gold inline-flex">
-              Découvrir l'édition
-              <ArrowRight className="w-4 h-4" />
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* New arrivals */}
-      <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <SectionHeader
-          subtitle="Nouvelles Arrivées"
-          title="Les dernières créations"
-        />
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        <RevealBlock className="text-center mb-16">
+          <p className="section-subtitle text-gold mb-4">Fraîchement arrivées</p>
+          <KineticText text="Nouvelles créations" tag="h2" className="section-title" trigger="scroll" stagger={0.04} />
+          <div className="gold-divider mt-4" />
+        </RevealBlock>
+        <RevealStagger className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {newArrivals.map((product, i) => (
             <ProductCard key={product.id} product={product as any} index={i} />
           ))}
-        </div>
+        </RevealStagger>
+        <RevealBlock className="text-center mt-12">
+          <Magnetic>
+            <Link to="/boutique" className="btn-outline-gold inline-flex">
+              Voir tout
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </Magnetic>
+        </RevealBlock>
       </section>
 
       {/* Promises */}
-      <section className="py-16 border-t border-white/[0.06] bg-noir-800/30">
+      <section className="py-16 border-y border-white/[0.05] bg-noir-800/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-            {PROMISES.map(({ Icon, title, desc }, i) => (
-              <motion.div
-                key={title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.1 }}
-                className="flex flex-col items-center text-center gap-3"
-              >
-                <div className="w-12 h-12 border border-gold/30 flex items-center justify-center">
-                  <Icon className="w-5 h-5 text-gold" />
+          <RevealStagger className="grid grid-cols-2 md:grid-cols-4 gap-8" stagger={0.1}>
+            {PROMISES.map(({ Icon, title, desc }) => (
+              <div key={title} className="flex flex-col items-center text-center gap-3 group">
+                <div className="w-12 h-12 border border-gold/20 group-hover:border-gold/60 group-hover:bg-gold/5 flex items-center justify-center transition-all duration-500">
+                  <Icon className="w-5 h-5 text-gold/60 group-hover:text-gold transition-colors" />
                 </div>
-                <h4 className="text-white font-body text-sm font-semibold">{title}</h4>
-                <p className="text-white/40 text-xs">{desc}</p>
-              </motion.div>
+                <h4 className="text-white text-sm font-semibold">{title}</h4>
+                <p className="text-white/30 text-xs">{desc}</p>
+              </div>
             ))}
-          </div>
+          </RevealStagger>
         </div>
       </section>
 
       {/* Testimonials */}
       <section className="py-24 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        <SectionHeader subtitle="Avis Clients" title="Elles parlent de nous" />
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {[
-            { name: 'Sophie M.', city: 'Paris', rating: 5, text: 'Une boutique exceptionnelle. La robe que j\'ai reçue est d\'une qualité incroyable, exactement comme sur les photos. Je reviendrai sans hésiter !' },
-            { name: 'Camille D.', city: 'Lyon', rating: 5, text: 'Service client parfait. J\'ai eu une question sur les tailles, l\'équipe a répondu en moins d\'une heure via le chat. Livraison en 2 jours. Parfait.' },
-            { name: 'Marie L.', city: 'Bordeaux', rating: 5, text: 'MILLA Boutique, c\'est le luxe accessible. Les créations sont uniques et on se sent vraiment spéciale en les portant. Mon adresse mode préférée !' },
-          ].map(({ name, city, rating, text }, i) => (
-            <motion.div
-              key={name}
-              initial={{ opacity: 0, y: 20 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              className="glass-card p-6"
-            >
+        <RevealBlock className="text-center mb-16">
+          <p className="section-subtitle text-gold mb-4">Avis clients</p>
+          <KineticText text="Elles parlent de nous" tag="h2" className="section-title" trigger="scroll" stagger={0.04} />
+        </RevealBlock>
+        <RevealStagger className="grid md:grid-cols-3 gap-6" stagger={0.12}>
+          {TESTIMONIALS.map(({ name, city, rating, text }) => (
+            <div key={name} className="luxury-card p-6 group hover:border-gold/30 transition-all duration-500">
               <div className="flex gap-1 mb-4">
-                {Array(rating).fill(0).map((_, j) => (
-                  <Star key={j} className="w-4 h-4 fill-gold text-gold" />
+                {Array(rating).fill(0).map((_, i) => (
+                  <Star key={i} className="w-4 h-4 fill-gold text-gold" />
                 ))}
               </div>
-              <p className="text-white/60 text-sm leading-relaxed italic mb-4">"{text}"</p>
-              <div>
-                <p className="text-white font-semibold text-sm">{name}</p>
-                <p className="text-white/30 text-xs">{city}</p>
+              <p className="text-white/50 text-sm leading-relaxed italic mb-5">"{text}"</p>
+              <div className="flex items-center gap-3 pt-4 border-t border-white/[0.05]">
+                <div className="w-8 h-8 bg-gold/10 border border-gold/20 flex items-center justify-center text-gold font-bold text-xs">
+                  {name[0]}
+                </div>
+                <div>
+                  <p className="text-white text-sm font-semibold">{name}</p>
+                  <p className="text-white/30 text-xs">{city}</p>
+                </div>
               </div>
-            </motion.div>
+            </div>
           ))}
-        </div>
+        </RevealStagger>
       </section>
     </div>
   )
